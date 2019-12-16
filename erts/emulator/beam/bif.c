@@ -2111,6 +2111,7 @@ do_send(Process *p, Eterm to, Eterm msg, Eterm *refp, ErtsSendContext* ctx)
     DistEntry *dep;
     Eterm* tp;
 
+    erts_incr_message_count(&p->msg_send);
     if (is_internal_pid(to)) {
 	if (IS_TRACED_FL(p, F_TRACE_SEND))
 	    trace_send(p, to, msg);

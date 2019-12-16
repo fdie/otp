@@ -382,8 +382,11 @@ atom memory_internal
 atom memory_types
 atom message
 atom message_binary
+atom message_counts
 atom message_queue_data
 atom message_queue_len
+atom message_queue_stats
+atom message_queues
 atom messages
 atom merge_trap
 atom meta

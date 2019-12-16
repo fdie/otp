@@ -366,6 +366,7 @@ erts_queue_dist_message(Process *rcvr,
 				     0
 #endif
 	    );
+	erts_incr_message_count(&rcvr->msg_enq);
     }
 }
 
@@ -480,9 +481,17 @@ queue_messages(Process* receiver,
 #endif
         while (msg) {
             trace_receive(receiver, from, ERL_MESSAGE_TERM(msg), te);
+            erts_incr_message_count(&receiver->msg_enq);
             msg = msg->next;
         }
 
+    }
+    else {
+        ErtsMessage *msg = first;
+        while (msg) {
+            erts_incr_message_count(&receiver->msg_enq);
+            msg = msg->next;
+        }
     }
     if (locked_msgq) {
 	erts_smp_proc_unlock(receiver, ERTS_PROC_LOCK_MSGQ);

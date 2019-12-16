@@ -410,3 +410,10 @@ JAVADOC-GENERATED
 /lib/xmerl/src/xmerl_xpath_parse.erl
 /lib/xmerl/test/xmerl_test.erl
 /lib/erl_interface/config.h.in
+
+# cloud
+
+.idea/
+.kdev4/
+stale_outputs_checked
+otp.kdev4

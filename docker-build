@@ -1,0 +1,112 @@
+#!/bin/bash
+
+# This script builds and starts a container containing an Erlang dev environment
+
+DELIVERY_VOLUME=~/otp
+SCRIPT_NAME=$(basename "$0")
+if [ x"$DOCKER_BUILD" != xyes ]
+then
+    function usage() {
+        cat <<EOM
+
+    Usage: $SCRIPT_NAME [OPTION]
+
+      -p | --delivery-dir VALUE     delivery directory (default is '~/otp')
+           --clone                  clone the "cloud" OTP fork
+           --gitclean               clean the git repository
+      -h | --help                   display help
+
+EOM
+        exit 2
+    }
+    TEMP=`getopt -o h::p: --long help::,gitclean::,clone::,delivery-dir: -n 'docker-build' -- "$@"`
+    eval set -- "$TEMP"
+
+    while true ; do
+        case "$1" in
+            -h | --help) usage; exit;;
+            --clone) git clone https://github.com/fdie/otp.git -b 19.2.3.1-cloud && cp $SCRIPT_NAME otp && cd otp; shift 2;;
+            --gitclean) GIT_CLEAN=1 ; echo "YES"; shift;;
+            -p | --delivery-dir) DELIVERY_VOLUME=$2; shift 2;;
+            --) shift ; break;;
+            *) echo "$1 => Internal error!"; exit 1;;
+        esac
+    done
+    if [[ $GIT_CLEAN = 1 ]]
+    then
+        echo "For cleaning whole tree: git clean -f -d"
+        git clean -f -d
+        git checkout -f        
+    fi
+    DOCKER_BUILD_DIR=/tmp/$$
+    mkdir -p ${DOCKER_BUILD_DIR}
+    mkdir -p ${DELIVERY_VOLUME}
+
+    # create Dockerfile
+    cat > ${DOCKER_BUILD_DIR}/Dockerfile << EOF
+FROM debian:stretch
+
+MAINTAINER frank.diebolt@al-enterprise.com
+
+RUN apt-get update -y && \
+	apt-get install -y build-essential autoconf libncurses5-dev libssl1.0-dev libwxgtk3.0-dev
+
+RUN apt-get install -y vim git valgrind
+
+ADD https://s3.amazonaws.com/rebar3/rebar3 /usr/local/bin
+ADD https://github.com/rebar/rebar/wiki/rebar /usr/local/bin
+
+RUN chmod +x /usr/local/bin/rebar*
+
+ENV ERL_TOP /build
+
+VOLUME /build
+VOLUME /delivery
+
+WORKDIR /build
+
+ENV DOCKER_BUILD yes
+EOF
+
+    cwd=$(pwd)
+    pushd ${DOCKER_BUILD_DIR}
+    docker build -t otp-buildimage .
+    docker run -it -v ${DELIVERY_VOLUME}:/delivery -v ${cwd}:/build \
+        --cap-add=SYS_PTRACE --security-opt seccomp=unconfined otp-buildimage
+    popd
+    exit 0
+fi
+
+#set -x
+#set -e
+
+function usage() {
+  cat <<EOM
+Usage: $(basename "$0") [OPTION] <version>
+
+  -s | --setup             configure build
+       --gitclean          clean the git repository
+       --debug             build debug/valgrind version
+  -h | --help              display help
+
+EOM
+	exit 2
+}
+
+ GIT_CLEAN=0
+ 
+ TEMP=`getopt -o h::s:: --long help::,setup::,debug::,gitclean:: -n 'docker-build' -- "$@"`
+ eval set -- "$TEMP"
+ 
+ while true ; do
+     case "$1" in
+         -h | --help) usage && exit;;
+         -s | --setup) ./otp_build setup && ./configure --prefix=/delivery && exit;;
+         --debug) ERL_TOP=/build && cd erts/emulator && make -j4 debug valgrind && \
+            echo "To run valgrind, execute: \$ERL_TOP/bin/cerl -valgrind -smp disable" && \
+            echo "To run gdb, execute: \$ERL_TOP/bin/cerl -rgdb" && exit 0;;
+         --gitclean) GIT_CLEAN=1 ; echo "YES"; shift 1;;
+         --) shift ; break;;
+         *) echo "$1 => Internal error!"; exit 1;;
+     esac
+ done
